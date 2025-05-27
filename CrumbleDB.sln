@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36109.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrumbleDB", "CrumbleDB\CrumbleDB.csproj", "{4C57CF7A-C7B4-4B8B-A69A-CB19884E4CF6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrumbleDB.Tests", "CrumbleDB.Tests\CrumbleDB.Tests.csproj", "{9378AD39-72B3-4554-92F7-7753AD0311A0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C57CF7A-C7B4-4B8B-A69A-CB19884E4CF6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C57CF7A-C7B4-4B8B-A69A-CB19884E4CF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C57CF7A-C7B4-4B8B-A69A-CB19884E4CF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C57CF7A-C7B4-4B8B-A69A-CB19884E4CF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9378AD39-72B3-4554-92F7-7753AD0311A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9378AD39-72B3-4554-92F7-7753AD0311A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9378AD39-72B3-4554-92F7-7753AD0311A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9378AD39-72B3-4554-92F7-7753AD0311A0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F633583C-41EE-4B3E-A9FC-097C0B909B81}
+	EndGlobalSection
+EndGlobal
