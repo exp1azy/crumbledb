@@ -1,219 +1,334 @@
-﻿using System.Text.Json;
+﻿using CrumbleDB.Entities;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace CrumbleDB
+namespace CrumbleDB;
+
+/// <summary>
+/// Represents a persistent, in-memory collection of <typeparamref name="T"/> entities
+/// backed by a JSON file on disk.
+/// </summary>
+/// <typeparam name="T">The entity type. Must inherit from <see cref="CrumbleEntity"/>.</typeparam>
+public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEntity
 {
-    /// <summary>
-    /// Represents a persistent, in-memory collection of <typeparamref name="T"/> entities 
-    /// backed by a JSON file on disk.
-    /// </summary>
-    /// <typeparam name="T">The entity type. Must inherit from <see cref="CrumbleEntity"/>.</typeparam>
-    public sealed class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEntity
+    private static readonly JsonSerializerOptions _serializerOptions = new()
     {
-        private readonly string _path = path;
-        private readonly List<T> _data = data;
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
-        private readonly JsonSerializerOptions _serializerOptions = new()
+    private readonly List<T> _data = data;
+    private readonly string _path = path;
+
+    /// <summary>
+    /// Gets the number of items in the collection.
+    /// </summary>
+    public int Count => _data.Count;
+
+    /// <summary>
+    /// Indicates whether the collection is empty.
+    /// </summary>
+    public bool IsEmpty => _data.Count == 0;
+
+    /// <summary>
+    /// Gets the collection items as a read-only list.
+    /// </summary>
+    public IReadOnlyList<T> Values => _data.AsReadOnly();
+
+    /// <summary>
+    /// Adds a new item to the collection.
+    /// </summary>
+    /// <param name="item">The item to add.</param>
+    public void Add(T item)
+    {
+        _data.Add(item);
+    }
+
+    /// <summary>
+    /// Adds a new item to the collection and immediately writes it to file.
+    /// </summary>
+    /// <param name="item">The item to add.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task AddForcedAsync(T item, CancellationToken cancellationToken = default)
+    {
+        _data.Add(item);
+        await WriteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Adds multiple items to the collection.
+    /// </summary>
+    /// <param name="items">The items to add.</param>
+    public void AddRange(IEnumerable<T> items)
+    {
+        _data.AddRange(items);
+    }
+
+    /// <summary>
+    /// Adds multiple items to the collection and immediately writes them to file.
+    /// </summary>
+    /// <param name="items">The items to add.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task AddRangeForcedAsync(IEnumerable<T> items, CancellationToken cancellationToken = default)
+    {
+        _data.AddRange(items);
+        await WriteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes all items from the collection (in-memory only).
+    /// </summary>
+    public void Clear()
+    {
+        _data.Clear();
+    }
+
+    /// <summary>
+    /// Clears the collection and immediately writes the empty state to the file.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task ClearForcedAsync(CancellationToken cancellationToken = default)
+    {
+        _data.Clear();
+        await WriteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Executes a specified action on the collection and writes the result to file.
+    /// </summary>
+    /// <remarks>
+    /// If an error occurs, the changes are rolled back.
+    /// </remarks>
+    /// <param name="action">The action to apply to the collection.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if the transaction was completed successfully; otherwise <c>false</c>.</returns>
+    public async Task<bool> ExecuteTransactionAsync(Action action, CancellationToken cancellationToken = default)
+    {
+        var backup = new T[_data.Count];
+        _data.CopyTo(backup);
+
+        try
         {
-            WriteIndented = false,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
-
-        /// <summary>
-        /// Gets the collection items as a read-only list.
-        /// </summary>
-        public IReadOnlyList<T> Values => _data;
-
-        /// <summary>
-        /// Gets the number of items in the collection.
-        /// </summary>
-        public int Count => _data.Count;
-
-        /// <summary>
-        /// Indicates whether the collection is empty.
-        /// </summary>
-        public bool IsEmpty => _data.Count == 0;
-
-        /// <summary>
-        /// Asynchronously loads a <see cref="CrumbleCollection{T}"/> from the specified file path.
-        /// If the file does not exist or is empty, an empty collection is returned.
-        /// </summary>
-        /// <remarks>
-        /// Call <see cref="CrumbleDbCore.GetCollectionAsync{T}(CancellationToken)"/> to create a <see cref="CrumbleCollection{T}"/> instance safely.
-        /// </remarks>
-        /// <param name="path">The file path to load from.</param>
-        /// <param name="cancellationToken">Optional cancellation token.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the loaded collection.</returns>
-        public static async Task<CrumbleCollection<T>> CreateAsync(string path, CancellationToken cancellationToken = default)
-        {
-            var fileInfo = new FileInfo(path);
-            int bufferSize = GetBufferSize(fileInfo.Length);
-
-            await using var fs = new FileStream(
-                path, 
-                FileMode.OpenOrCreate, 
-                FileAccess.Read, 
-                FileShare.Read,
-                bufferSize, 
-                useAsync: true
-            );
-
-            var data = fs.Length == 0 ? [] : await JsonSerializer.DeserializeAsync<List<T>>(fs, cancellationToken: cancellationToken);
-
-            return new CrumbleCollection<T>(path, data!);
-        }
-
-        /// <summary>
-        /// Adds a new item to the collection.
-        /// </summary>
-        /// <param name="item">The item to add.</param>
-        public void Add(T item)
-        {
-            _data.Add(item);
-        }
-
-        /// <summary>
-        /// Adds multiple items to the collection.
-        /// </summary>
-        /// <param name="items">The items to add.</param>
-        public void AddRange(IEnumerable<T> items)
-        {
-            _data.AddRange(items);
-        }
-
-        /// <summary>
-        /// Replaces the entire collection with the specified items.
-        /// </summary>
-        /// <param name="items">The items to replace the existing collection.</param>
-        public void Rewrite(IEnumerable<T> items)
-        {
-            _data.Clear();
-            _data.AddRange(items);
-        }
-
-        /// <summary>
-        /// Removes all items from the collection that do not match the specified predicate.
-        /// </summary>
-        /// <param name="predicate">The predicate to use for filtering.</param>
-        public void Filter(Predicate<T> predicate)
-        {
-            _data.RemoveAll(x => !predicate(x));
-        }
-
-        /// <summary>
-        /// Updates an existing item in the collection by its <see cref="CrumbleEntity.Id"/>.
-        /// </summary>
-        /// <param name="id">The identifier of the item to update.</param>
-        /// <param name="newItem">The new item to replace the existing one.</param>
-        /// <returns><c>true</c> if the item was found and updated; otherwise <c>false</c>.</returns>
-        public bool UpdateById(Guid id, T newItem)
-        {
-            var index = _data.FindIndex(e => e.Id == id);
-            if (index == -1) return false;
-
-            _data[index] = newItem;
+            action();
+            await WriteAsync(cancellationToken);
             return true;
         }
-
-        /// <summary>
-        /// Removes an item from the collection.
-        /// </summary>
-        /// <param name="item">The item to remove.</param>
-        /// <returns><c>true</c> if the item was successfully removed; otherwise <c>false</c>.</returns>
-        public bool Remove(T item)
-        {
-            return _data.Remove(item);
-        }
-
-        /// <summary>
-        /// Removes an item by its <see cref="CrumbleEntity.Id"/>.
-        /// </summary>
-        /// <param name="id">The ID of the item to remove.</param>
-        /// <returns><c>true</c> if the item was found and removed; otherwise <c>false</c>.</returns>
-        public bool RemoveById(Guid id)
-        {
-            var item = _data.FirstOrDefault(e => e.Id == id);
-            return item != null && _data.Remove(item);
-        }
-
-        /// <summary>
-        /// Removes all items that match the specified predicate.
-        /// </summary>
-        /// <param name="predicate">The predicate used to determine which items to remove.</param>
-        public void RemoveAll(Predicate<T> predicate)
-        {
-            _data.RemoveAll(predicate);
-        }
-
-        /// <summary>
-        /// Removes all items from the collection (in-memory only).
-        /// </summary>
-        public void Clear()
+        catch
         {
             _data.Clear();
+            _data.AddRange(backup);
+            return false;
         }
+    }
 
-        /// <summary>
-        /// Executes a specified action on each element in the collection.
-        /// </summary>
-        /// <param name="action">The action to apply to each element.</param>
-        public void ForEach(Action<T> action)
-        {
-            _data.ForEach(action);
-        }
+    /// <summary>
+    /// Executes a specified action on each element in the collection.
+    /// </summary>
+    /// <param name="action">The action to apply to each element.</param>
+    public void ForEach(Action<T> action)
+    {
+        _data.ForEach(action);
+    }
 
-        /// <summary>
-        /// Clears the collection and immediately writes the empty state to the file.
-        /// </summary>
-        /// <param name="cancellationToken">Optional cancellation token.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        public async Task ClearForcedAsync(CancellationToken cancellationToken = default)
-        {
-            _data.Clear();
+    /// <summary>
+    /// Executes a specified action on each element in the collection and immediately writes the collection to file.
+    /// </summary>
+    /// <param name="action">The action to apply to each element.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task ForEachForcedAsync(Action<T> action, CancellationToken cancellationToken = default)
+    {
+        ForEach(action);
+        await WriteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes an item from the collection.
+    /// </summary>
+    /// <param name="item">The item to remove.</param>
+    /// <returns><c>true</c> if the item was successfully removed; otherwise <c>false</c>.</returns>
+    public bool Remove(T item)
+    {
+        return _data.Remove(item);
+    }
+
+    /// <summary>
+    /// Removes all items that match the specified predicate.
+    /// </summary>
+    /// <param name="predicate">The predicate used to determine which items to remove.</param>
+    public void RemoveAll(Predicate<T> predicate)
+    {
+        _data.RemoveAll(predicate);
+    }
+
+    /// <summary>
+    /// Removes all items that match the specified predicate and immediately writes the collection to file.
+    /// </summary>
+    /// <param name="predicate">The predicate used to determine which items to remove.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task RemoveAllForcedAsync(Predicate<T> predicate, CancellationToken cancellationToken = default)
+    {
+        RemoveAll(predicate);
+        await WriteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes an item by its <see cref="CrumbleEntity.Id"/>.
+    /// </summary>
+    /// <param name="id">The ID of the item to remove.</param>
+    /// <returns><c>true</c> if the item was found and removed; otherwise <c>false</c>.</returns>
+    public bool RemoveById(Guid id)
+    {
+        var item = _data.FirstOrDefault(e => e.Id == id);
+        return item != null && _data.Remove(item);
+    }
+
+    /// <summary>
+    /// Removes an item by its <see cref="CrumbleEntity.Id"/> and immediately writes the collection to file.
+    /// </summary>
+    /// <param name="id">The ID of the item to remove.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if the item was found and removed; otherwise <c>false</c>.</returns>
+    public async Task<bool> RemoveByIdForcedAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = RemoveById(id);
+
+        if (result)
             await WriteAsync(cancellationToken);
-        }
 
-        /// <summary>
-        /// Asynchronously writes the collection to disk using the specified file path.
-        /// </summary>
-        /// <param name="cancellationToken">Optional cancellation token.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        public async Task WriteAsync(CancellationToken cancellationToken = default)
+        return result;
+    }
+
+    /// <summary>
+    /// Removes an item from the collection and immediately writes it to file.
+    /// </summary>
+    /// <param name="item">The item to remove.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if the item was successfully removed; otherwise <c>false</c>.</returns>
+    public async Task<bool> RemoveForcedAsync(T item, CancellationToken cancellationToken = default)
+    {
+        var result = Remove(item);
+
+        if (result)
+            await WriteAsync(cancellationToken);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Replaces the entire collection with the specified items.
+    /// </summary>
+    /// <param name="items">The items to replace the existing collection.</param>
+    public void Rewrite(IEnumerable<T> items)
+    {
+        _data.Clear();
+        _data.AddRange(items);
+    }
+
+    /// <summary>
+    /// Replaces the entire collection with the specified items and immediately writes them to file.
+    /// </summary>
+    /// <param name="items">The items to replace the existing collection.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task RewriteForcedAsync(IEnumerable<T> items, CancellationToken cancellationToken = default)
+    {
+        Rewrite(items);
+        await WriteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Converts the collection to a dictionary where the keys are the <see cref="CrumbleEntity.Id"/> values.
+    /// </summary>
+    /// <returns>A dictionary where the keys are the <see cref="CrumbleEntity.Id"/> values.</returns>
+    public Dictionary<Guid, T> ToDictionary()
+    {
+        return _data.ToDictionary(x => x.Id, x => x);
+    }
+
+    /// <summary>
+    /// Updates an existing item in the collection by its <see cref="CrumbleEntity.Id"/>.
+    /// </summary>
+    /// <param name="id">The identifier of the item to update.</param>
+    /// <param name="patch">The patch function to apply to the item.</param>
+    /// <returns><c>true</c> if the item was found and updated; otherwise <c>false</c>.</returns>
+    public bool UpdateById(Guid id, Action<T> patch)
+    {
+        var item = _data.FirstOrDefault(e => e.Id == id);
+        if (item == null) return false;
+
+        patch(item);
+        return true;
+    }
+
+    /// <summary>
+    /// Updates an existing item in the collection by its <see cref="CrumbleEntity.Id"/> and immediately writes it to file.
+    /// </summary>
+    /// <param name="id">The identifier of the item to update.</param>
+    /// <param name="patch">The patch function to apply to the item.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if the item was found and updated; otherwise <c>false</c>.</returns>
+    public async Task<bool> UpdateByIdForcedAsync(Guid id, Action<T> patch, CancellationToken cancellationToken = default)
+    {
+        var result = UpdateById(id, patch);
+
+        if (result)
+            await WriteAsync(cancellationToken);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Asynchronously writes the collection to disk using the specified file path.
+    /// </summary>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task WriteAsync(CancellationToken cancellationToken = default)
+    {
+        var fileInfo = new FileInfo(_path);
+        int bufferSize = GetBufferSize(fileInfo.Exists ? fileInfo.Length : 0);
+
+        await using var fs = new FileStream(
+            _path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize,
+            useAsync: true
+        );
+
+        await JsonSerializer.SerializeAsync(fs, _data, _serializerOptions, cancellationToken);
+    }
+
+    internal static async Task<CrumbleCollection<T>> CreateAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var fileInfo = new FileInfo(path);
+        int bufferSize = GetBufferSize(fileInfo.Length);
+
+        await using var fs = new FileStream(
+            path,
+            FileMode.OpenOrCreate,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize,
+            useAsync: true
+        );
+
+        var data = fs.Length == 0
+            ? []
+            : await JsonSerializer.DeserializeAsync<List<T>>(fs, _serializerOptions, cancellationToken);
+
+        return new CrumbleCollection<T>(path, data!);
+    }
+
+    private static int GetBufferSize(long fileSize)
+    {
+        return fileSize switch
         {
-            var fileInfo = new FileInfo(_path);
-            int bufferSize = GetBufferSize(fileInfo.Exists ? fileInfo.Length : 0);
-
-            await using var fs = new FileStream(
-                _path,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize,
-                useAsync: true
-            );
-
-            await JsonSerializer.SerializeAsync(fs, _data, _serializerOptions, cancellationToken);
-        }
-
-        /// <summary>
-        /// Converts the collection to a dictionary where the keys are the <see cref="CrumbleEntity.Id"/> values.
-        /// </summary>
-        /// <returns>A dictionary where the keys are the <see cref="CrumbleEntity.Id"/> values.</returns>
-        public Dictionary<Guid, T> ToDictionary()
-        {
-            return _data.ToDictionary(x => x.Id, x => x);
-        }
-
-        private static int GetBufferSize(long fileSize)
-        {
-            return fileSize switch
-            {
-                <= 64 * 1024 => 4 * 1024,      
-                <= 1 * 1024 * 1024 => 8 * 1024,
-                <= 16 * 1024 * 1024 => 16 * 1024,
-                <= 128 * 1024 * 1024 => 32 * 1024,
-                _ => 64 * 1024
-            };
-        }
+            <= 64 * 1024 => 4 * 1024,
+            <= 1 * 1024 * 1024 => 8 * 1024,
+            <= 16 * 1024 * 1024 => 16 * 1024,
+            <= 128 * 1024 * 1024 => 32 * 1024,
+            _ => 64 * 1024
+        };
     }
 }

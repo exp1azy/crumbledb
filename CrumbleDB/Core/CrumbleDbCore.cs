@@ -1,4 +1,6 @@
-﻿namespace CrumbleDB;
+﻿using CrumbleDB.Entities;
+
+namespace CrumbleDB.Core;
 
 /// <summary>
 /// Core interface to the Crumble database system, which provides access to collections
@@ -22,9 +24,10 @@ public sealed class CrumbleDbCore(string path)
         if (!Directory.Exists(_path))
             return [];
 
-        return Directory.GetFiles(_path, "*.json")
-                        .Select(x => Path.GetFileNameWithoutExtension(x))
-                        .ToArray();
+        return Directory
+            .GetFiles(_path, "*.json")
+            .Select(x => Path.GetFileNameWithoutExtension(x))
+            .ToArray();
     }
 
     /// <summary>
@@ -54,6 +57,54 @@ public sealed class CrumbleDbCore(string path)
         }
 
         return await CrumbleCollection<T>.CreateAsync(fullPath, cancellationToken);
+    }
+
+    /// <summary>
+    /// Retrieves information about the collection file associated with the specified type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The entity type whose collection information should be retrieved.</typeparam>
+    /// <returns>A <see cref="CollectionInfo"/> object containing information about the collection file.</returns>
+    public CollectionInfo GetCollectionInfo<T>() where T : CrumbleEntity
+    {
+        var fullPath = GetFullPath<T>();
+        var fullInfo = new FileInfo(fullPath);
+
+        var result = new CollectionInfo
+        {
+            CreationTime = fullInfo.CreationTime,
+            DirectoryName = fullInfo.DirectoryName,
+            Exists = fullInfo.Exists,
+            Extension = fullInfo.Extension,
+            FullName = fullInfo.FullName,
+            IsReadOnly = fullInfo.IsReadOnly,
+            LastAccessTime = fullInfo.LastAccessTime,
+            LastWriteTime = fullInfo.LastWriteTime,
+            LinkTarget = fullInfo.LinkTarget,
+            Name = fullInfo.Name
+        };
+
+        try
+        {
+            result.Length = fullInfo.Length;
+        }
+        catch
+        {
+            result.Length = -1;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a timestamped copy (backup) of the collection file for the specified type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The entity type whose collection file should be backed up.</typeparam>
+    public void CreateBackup<T>() where T : CrumbleEntity
+    {
+        var typeName = typeof(T).Name.ToLowerInvariant();
+        var fullPath = Path.Combine(_path, $"{typeName}_{DateTime.UtcNow.Ticks}.json");
+
+        File.Copy(GetFullPath<T>(), fullPath);
     }
 
     /// <summary>
@@ -102,29 +153,6 @@ public sealed class CrumbleDbCore(string path)
     {
         foreach (var file in Directory.GetFiles(_path, "*.json"))
             await File.WriteAllTextAsync(file, string.Empty, cancellationToken);
-    }
-
-    /// <summary>
-    /// Creates a timestamped copy of the collection file for the specified type <typeparamref name="T"/>.
-    /// </summary>
-    /// <typeparam name="T">The entity type whose collection file should be copied.</typeparam>
-    /// <returns><c>true</c> if the file existed and was copied; otherwise, <c>false</c>.</returns>
-    public bool Copy<T>() where T : CrumbleEntity
-    {
-        var fullPath = GetFullPath<T>();
-
-        if (File.Exists(fullPath))
-        {
-            var fileName = Path.GetFileNameWithoutExtension(fullPath);
-            var copyName = $"{fileName}_{DateTime.UtcNow.Ticks}.json";
-            var copyPath = Path.Combine(_path, copyName);
-
-            File.Copy(fullPath, copyPath);
-
-            return true;
-        }
-
-        return false;
     }
 
     private string GetFullPath<T>() where T : CrumbleEntity
