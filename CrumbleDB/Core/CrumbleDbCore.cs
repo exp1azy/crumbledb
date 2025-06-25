@@ -108,6 +108,23 @@ public sealed class CrumbleDbCore(string path)
     }
 
     /// <summary>
+    /// Restores the collection file for the specified type <typeparamref name="T"/> from a backup file.
+    /// </summary>
+    /// <typeparam name="T">The entity type whose collection file should be restored.</typeparam>
+    /// <param name="backupPath">The path to the backup file.</param>
+    /// <exception cref="FileNotFoundException"></exception>
+    public async Task<CrumbleCollection<T>> RestoreBackupAsync<T>(string backupPath) where T : CrumbleEntity
+    {
+        if (!File.Exists(backupPath))
+            throw new FileNotFoundException($"The specified backup file ({backupPath}) does not exist.");
+
+        string fullPath = GetFullPath<T>();
+        File.Copy(backupPath, fullPath, overwrite: true);
+
+        return await CrumbleCollection<T>.CreateAsync(fullPath);
+    }
+
+    /// <summary>
     /// Deletes the collection file associated with the specified type <typeparamref name="T"/>.
     /// </summary>
     /// <typeparam name="T">The entity type whose collection should be deleted.</typeparam>

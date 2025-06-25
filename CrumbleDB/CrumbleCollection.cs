@@ -1,6 +1,4 @@
 ﻿using CrumbleDB.Entities;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace CrumbleDB;
 
@@ -11,12 +9,6 @@ namespace CrumbleDB;
 /// <typeparam name="T">The entity type. Must inherit from <see cref="CrumbleEntity"/>.</typeparam>
 public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEntity
 {
-    private static readonly JsonSerializerOptions _serializerOptions = new()
-    {
-        WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     private readonly List<T> _data = data;
     private readonly string _path = path;
 
@@ -34,6 +26,11 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// Gets the collection items as a read-only list.
     /// </summary>
     public IReadOnlyList<T> Values => _data.AsReadOnly();
+
+    /// <summary>
+    /// Gets the total size of the collection in bytes.
+    /// </summary>
+    public long TotalSizeBytes => new FileInfo(_path).Length;
 
     /// <summary>
     /// Adds a new item to the collection.
@@ -278,14 +275,44 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     }
 
     /// <summary>
+    /// Updates all items in the collection that match the specified predicate using the specified patch function.
+    /// </summary>
+    /// <param name="predicate">The predicate to match items to update.</param>
+    /// <param name="patch">The patch function to apply to the matched items.</param>
+    /// <returns>Number of items that were updated.</returns>
+    public int UpdateAll(Predicate<T> predicate, Action<T> patch)
+    {
+        var matches = _data.Where(x => predicate(x)).ToList();
+        matches.ForEach(patch);
+        return matches.Count;
+    }
+
+    /// <summary>
+    /// Updates all items in the collection that match the specified predicate using the specified patch function and immediately writes the collection to file.
+    /// </summary>
+    /// <param name="predicate">The predicate to match items to update.</param>
+    /// <param name="patch">The patch function to apply to the matched items.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of items that were updated.</returns>
+    public async Task<int> UpdateAllForcedAsync(Predicate<T> predicate, Action<T> patch, CancellationToken cancellationToken = default)
+    {
+        var matches = _data.Where(x => predicate(x)).ToList();
+        matches.ForEach(patch);
+        await WriteAsync(cancellationToken);
+
+        return matches.Count;
+    }
+
+    /// <summary>
     /// Asynchronously writes the collection to disk using the specified file path.
     /// </summary>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task WriteAsync(CancellationToken cancellationToken = default)
     {
-        var fileInfo = new FileInfo(_path);
-        int bufferSize = GetBufferSize(fileInfo.Exists ? fileInfo.Length : 0);
+        await using var ms = new MemoryStream();
+        await SpanJson.JsonSerializer.Generic.Utf8.SerializeAsync(_data, ms, cancellationToken);
+        int bufferSize = GetBufferSize(ms.Length);
 
         await using var fs = new FileStream(
             _path,
@@ -296,7 +323,8 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
             useAsync: true
         );
 
-        await JsonSerializer.SerializeAsync(fs, _data, _serializerOptions, cancellationToken);
+        ms.Position = 0;
+        await ms.CopyToAsync(fs, bufferSize, cancellationToken);
     }
 
     internal static async Task<CrumbleCollection<T>> CreateAsync(string path, CancellationToken cancellationToken = default)
@@ -315,20 +343,22 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
 
         var data = fs.Length == 0
             ? []
-            : await JsonSerializer.DeserializeAsync<List<T>>(fs, _serializerOptions, cancellationToken);
+            : await SpanJson.JsonSerializer.Generic.Utf8.DeserializeAsync<List<T>>(fs, cancellationToken);
 
         return new CrumbleCollection<T>(path, data!);
     }
 
-    private static int GetBufferSize(long fileSize)
+    private static int GetBufferSize(long dataSize)
     {
-        return fileSize switch
+        return dataSize switch
         {
+            0 => 16 * 1024,
             <= 64 * 1024 => 4 * 1024,
             <= 1 * 1024 * 1024 => 8 * 1024,
             <= 16 * 1024 * 1024 => 16 * 1024,
             <= 128 * 1024 * 1024 => 32 * 1024,
-            _ => 64 * 1024
+            <= 1024 * 1024 * 1024 => 64 * 1024,
+            _ => 128 * 1024
         };
     }
 }
