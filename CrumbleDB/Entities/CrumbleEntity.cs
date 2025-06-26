@@ -9,7 +9,7 @@ public abstract class CrumbleEntity : IEquatable<CrumbleEntity>
     /// <summary>
     /// Gets the unique identifier for the entity.
     /// </summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; internal set; } = Guid.NewGuid();
 
     /// <summary>
     /// Determines whether the current entity is equal to another <see cref="CrumbleEntity"/> instance.

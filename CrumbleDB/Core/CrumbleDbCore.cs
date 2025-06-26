@@ -77,8 +77,8 @@ public sealed class CrumbleDbCore(string path)
             Extension = fullInfo.Extension,
             FullName = fullInfo.FullName,
             IsReadOnly = fullInfo.IsReadOnly,
-            LastAccessTime = fullInfo.LastAccessTime,
-            LastWriteTime = fullInfo.LastWriteTime,
+            LastAccessTime = fullInfo.LastAccessTimeUtc,
+            LastWriteTime = fullInfo.LastWriteTimeUtc,
             LinkTarget = fullInfo.LinkTarget,
             Name = fullInfo.Name
         };
@@ -99,12 +99,17 @@ public sealed class CrumbleDbCore(string path)
     /// Creates a timestamped copy (backup) of the collection file for the specified type <typeparamref name="T"/>.
     /// </summary>
     /// <typeparam name="T">The entity type whose collection file should be backed up.</typeparam>
-    public void CreateBackup<T>() where T : CrumbleEntity
+    public async Task CreateBackup<T>() where T : CrumbleEntity
     {
-        var typeName = typeof(T).Name.ToLowerInvariant();
-        var fullPath = Path.Combine(_path, $"{typeName}_{DateTime.UtcNow.Ticks}.json");
+        string sourceFileName = GetFullPath<T>();
 
-        File.Copy(GetFullPath<T>(), fullPath);
+        if (!File.Exists(sourceFileName))
+            throw new FileNotFoundException("The specified collection file does not exist.");
+
+        var typeName = typeof(T).Name.ToLowerInvariant();
+        var backupFileName = Path.Combine(_path, $"{typeName}_{DateTime.UtcNow.Ticks}.json");
+
+        File.Copy(sourceFileName, backupFileName);
     }
 
     /// <summary>

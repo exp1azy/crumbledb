@@ -14,7 +14,7 @@
 	<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<PackageTags>db;data;database;json;in-memory;crud;collection;cache;entity;jsondb</PackageTags>
-	<Version>2.1.0</Version>
+	<Version>2.1.1</Version>
 	<PackageReleaseNotes>minor improvements and additions</PackageReleaseNotes>
   </PropertyGroup>
 

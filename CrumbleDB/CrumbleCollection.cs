@@ -48,7 +48,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task AddForcedAsync(T item, CancellationToken cancellationToken = default)
     {
-        _data.Add(item);
+        Add(item);
         await WriteAsync(cancellationToken);
     }
 
@@ -68,7 +68,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task AddRangeForcedAsync(IEnumerable<T> items, CancellationToken cancellationToken = default)
     {
-        _data.AddRange(items);
+        AddRange(items);
         await WriteAsync(cancellationToken);
     }
 
@@ -102,6 +102,8 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <returns><c>true</c> if the transaction was completed successfully; otherwise <c>false</c>.</returns>
     public async Task<bool> ExecuteTransactionAsync(Action action, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(action);
+
         var backup = new T[_data.Count];
         _data.CopyTo(backup);
 
