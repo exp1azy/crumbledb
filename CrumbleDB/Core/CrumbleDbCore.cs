@@ -3,11 +3,10 @@
 namespace CrumbleDB.Core;
 
 /// <summary>
-/// Core interface to the Crumble database system, which provides access to collections
-/// of entities stored as JSON files on disk.
+/// Core interface to the Crumble database system, which provides access to collections of entities stored as JSON files on disk.
 /// </summary>
 /// <remarks>
-/// Initializes a new instance of the <see cref="CrumbleDbCore"/> class. 
+/// Initializes a new instance of the <see cref="CrumbleDbCore"/> class.
 /// Use <see cref="CrumbleDb.Open(string)"/> to create an instance of <see cref="CrumbleDbCore"/> safely.
 /// </remarks>
 /// <param name="path">The root directory where all collection JSON files are stored.</param>
@@ -41,8 +40,7 @@ public sealed class CrumbleDbCore(string path)
     }
 
     /// <summary>
-    /// Asynchronously retrieves or creates the collection file for the specified type <typeparamref name="T"/> 
-    /// and loads it into memory.
+    /// Asynchronously retrieves or creates the collection file for the specified type <typeparamref name="T"/> and loads it into memory.
     /// </summary>
     /// <typeparam name="T">The entity type, which must inherit from <see cref="CrumbleEntity"/>.</typeparam>
     /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
@@ -99,7 +97,7 @@ public sealed class CrumbleDbCore(string path)
     /// Creates a timestamped copy (backup) of the collection file for the specified type <typeparamref name="T"/>.
     /// </summary>
     /// <typeparam name="T">The entity type whose collection file should be backed up.</typeparam>
-    public async Task CreateBackup<T>() where T : CrumbleEntity
+    public void CreateBackup<T>() where T : CrumbleEntity
     {
         string sourceFileName = GetFullPath<T>();
 
@@ -148,8 +146,7 @@ public sealed class CrumbleDbCore(string path)
     }
 
     /// <summary>
-    /// Asynchronously clears the contents of the collection file for the specified type <typeparamref name="T"/>,
-    /// but does not delete the file.
+    /// Asynchronously clears the contents of the collection file for the specified type <typeparamref name="T"/>, but does not delete the file.
     /// </summary>
     /// <typeparam name="T">The entity type whose collection should be cleared.</typeparam>
     /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>

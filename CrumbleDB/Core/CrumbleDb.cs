@@ -6,8 +6,7 @@
 public sealed class CrumbleDb
 {
     /// <summary>
-    /// Opens a Crumble database located in the specified folder.
-    /// If the folder does not exist, it will be created.
+    /// Opens a Crumble database located in the specified folder. If the folder does not exist, it will be created.
     /// </summary>
     /// <param name="folder">The file system path to the folder where the database is or will be stored.</param>
     /// <returns>

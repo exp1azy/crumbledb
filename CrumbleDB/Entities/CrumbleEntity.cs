@@ -1,14 +1,16 @@
-﻿namespace CrumbleDB.Entities;
+﻿using System.Text.Json.Serialization;
+
+namespace CrumbleDB.Entities;
 
 /// <summary>
-/// Represents the base entity type for Crumble database records.
-/// Provides identity and value-based equality comparison using a unique identifier.
+/// Represents the base entity type for Crumble database records. Provides identity and value-based equality comparison using a unique identifier.
 /// </summary>
 public abstract class CrumbleEntity : IEquatable<CrumbleEntity>
 {
     /// <summary>
     /// Gets the unique identifier for the entity.
     /// </summary>
+    [JsonInclude]
     public Guid Id { get; internal set; } = Guid.NewGuid();
 
     /// <summary>

@@ -13,9 +13,9 @@
 	<RepositoryUrl>https://github.com/exp1azy/crumbledb</RepositoryUrl>
 	<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
-	<PackageTags>db;data;database;json;in-memory;crud;collection;cache;entity;jsondb</PackageTags>
-	<Version>2.1.1</Version>
-	<PackageReleaseNotes>minor improvements and additions</PackageReleaseNotes>
+	<PackageTags>db;data;database;json;in-memory;crud;collection;document;doc;cache;entity;jsondb</PackageTags>
+	<Version>2.2.0</Version>
+	<PackageReleaseNotes>bug fixes</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,10 +27,6 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="SpanJson" Version="4.2.1" />
   </ItemGroup>
 
 </Project>

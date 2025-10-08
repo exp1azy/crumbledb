@@ -1,16 +1,18 @@
 ﻿using CrumbleDB.Entities;
+using System.Text.Json;
 
 namespace CrumbleDB;
 
 /// <summary>
-/// Represents a persistent, in-memory collection of <typeparamref name="T"/> entities
-/// backed by a JSON file on disk.
+/// Represents a persistent, in-memory collection of <typeparamref name="T"/> entities backed by a JSON file on disk.
 /// </summary>
 /// <typeparam name="T">The entity type. Must inherit from <see cref="CrumbleEntity"/>.</typeparam>
 public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEntity
 {
     private readonly List<T> _data = data;
     private readonly string _path = path;
+
+    const int DEFAULT_BUFFER_SIZE = 16384;
 
     /// <summary>
     /// Gets the number of items in the collection.
@@ -48,7 +50,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task AddForcedAsync(T item, CancellationToken cancellationToken = default)
     {
-        Add(item);
+        _data.Add(item);
         await WriteAsync(cancellationToken);
     }
 
@@ -68,7 +70,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task AddRangeForcedAsync(IEnumerable<T> items, CancellationToken cancellationToken = default)
     {
-        AddRange(items);
+        _data.AddRange(items);
         await WriteAsync(cancellationToken);
     }
 
@@ -137,7 +139,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task ForEachForcedAsync(Action<T> action, CancellationToken cancellationToken = default)
     {
-        ForEach(action);
+        _data.ForEach(action);
         await WriteAsync(cancellationToken);
     }
 
@@ -167,7 +169,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task RemoveAllForcedAsync(Predicate<T> predicate, CancellationToken cancellationToken = default)
     {
-        RemoveAll(predicate);
+        _data.RemoveAll(predicate);
         await WriteAsync(cancellationToken);
     }
 
@@ -206,7 +208,7 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     /// <returns><c>true</c> if the item was successfully removed; otherwise <c>false</c>.</returns>
     public async Task<bool> RemoveForcedAsync(T item, CancellationToken cancellationToken = default)
     {
-        var result = Remove(item);
+        var result = _data.Remove(item);
 
         if (result)
             await WriteAsync(cancellationToken);
@@ -313,54 +315,36 @@ public class CrumbleCollection<T>(string path, List<T> data) where T : CrumbleEn
     public async Task WriteAsync(CancellationToken cancellationToken = default)
     {
         await using var ms = new MemoryStream();
-        await SpanJson.JsonSerializer.Generic.Utf8.SerializeAsync(_data, ms, cancellationToken);
-        int bufferSize = GetBufferSize(ms.Length);
+        await JsonSerializer.SerializeAsync(ms, _data, cancellationToken: cancellationToken);
 
         await using var fs = new FileStream(
             _path,
             FileMode.Create,
             FileAccess.Write,
             FileShare.None,
-            bufferSize,
+            DEFAULT_BUFFER_SIZE,
             useAsync: true
         );
 
         ms.Position = 0;
-        await ms.CopyToAsync(fs, bufferSize, cancellationToken);
+        await ms.CopyToAsync(fs, DEFAULT_BUFFER_SIZE, cancellationToken);
     }
 
     internal static async Task<CrumbleCollection<T>> CreateAsync(string path, CancellationToken cancellationToken = default)
     {
-        var fileInfo = new FileInfo(path);
-        int bufferSize = GetBufferSize(fileInfo.Length);
-
         await using var fs = new FileStream(
             path,
             FileMode.OpenOrCreate,
             FileAccess.Read,
             FileShare.Read,
-            bufferSize,
+            DEFAULT_BUFFER_SIZE,
             useAsync: true
         );
 
         var data = fs.Length == 0
             ? []
-            : await SpanJson.JsonSerializer.Generic.Utf8.DeserializeAsync<List<T>>(fs, cancellationToken);
+            : await JsonSerializer.DeserializeAsync<List<T>>(fs, cancellationToken: cancellationToken);
 
         return new CrumbleCollection<T>(path, data!);
-    }
-
-    private static int GetBufferSize(long dataSize)
-    {
-        return dataSize switch
-        {
-            0 => 16 * 1024,
-            <= 64 * 1024 => 4 * 1024,
-            <= 1 * 1024 * 1024 => 8 * 1024,
-            <= 16 * 1024 * 1024 => 16 * 1024,
-            <= 128 * 1024 * 1024 => 32 * 1024,
-            <= 1024 * 1024 * 1024 => 64 * 1024,
-            _ => 128 * 1024
-        };
     }
 }
